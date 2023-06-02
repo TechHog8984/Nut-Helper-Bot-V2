@@ -1,7 +1,9 @@
+from discord import Intents, Embed, Game, CustomActivity, ActivityType, PartialEmoji, Status;
 from discord.client import Client;
-from discord import Intents, Embed;
+from discord import Activity;
 from discord import channel;
 DMChannel = channel.DMChannel;
+
 from nuthelper.logger import Logger;
 from config import config;
 import time;
@@ -10,11 +12,34 @@ from nuthelper.timehelper import getTimeFromMessage;
 def formatMessageContent(content):
     return f"```\n{content.replace('```', '` ` `')}\n```";
 
+# class MyActivity(Activity):
+#     def __init__(self):
+#         Activity.__init__(self);
+#         self.name = "Hello1";
+#         self.state = "Hello2";
+#         self.type = ActivityType.custom;
+#         self.details = "Hello3";
+#         self.buttons = [
+#             "Button1",
+#             "Button2"
+#         ];
+class Presence():
+    def __init__(self, status, activity):
+        self.status = status;
+        self.activity = activity;
+
+class Presences:
+    starting_up = Presence(Status.dnd, Game("Starting up..."))
+    started = Presence(Status.online, Game("Check out my code! https://github.com/TechHog8984/Nut-Helper-Bot-V2"))
+
 class NutHelper(Client):
     message_logs = {};
 
     def __init__(self, intents = Intents):
         Client.__init__(self, intents = intents);
+
+    async def changePresence(self, presence):
+        await self.change_presence(status = presence.status, activity = presence.activity);
 
     def fetchField1(self, field, value):
         if value == None:
@@ -29,6 +54,7 @@ class NutHelper(Client):
         await self.logger.log(f"Successfully fetched **{field}**.");
 
     async def on_ready(self):
+        await self.changePresence(Presences.starting_up);
         self.fetchField1("guild", self.get_guild(config.get("Guild ID")));
         self.fetchField1("bot_logs_channel", self.guild.get_channel(config.get("Bot Logs Channel ID")));
         self.fetchField1("avatar_url", self.user.display_avatar.url);
@@ -54,6 +80,7 @@ class NutHelper(Client):
                 await self.logger.log(f"Added category '**{category.name}**' to message_logs_ignored_categories.");
 
         await self.logger.log("Bot successfully started!");
+        await self.changePresence(Presences.started);
 
     async def on_member_join(self, member):
         # await self.bot_logs_channel.send(embed = self.base_embed.copy().)
@@ -131,7 +158,8 @@ class NutHelper(Client):
         log = await self.message_logs_channel.send(embed = embed);
         self.message_logs[message.id] = {
             "message": message,
-            "log": log
+            "log": log,
+            "last_content": content
         };
 
     async def sendFailEmbed(self, channel, message):
@@ -172,9 +200,14 @@ class NutHelper(Client):
             return;
 
         message = log["message"];
+        content = message.content;
+        if content == log["last_content"]:
+            return;
+
+        log["last_content"] = content;
         log_message = log["log"];
         embed = log_message.embeds[0];
-        embed.set_field_at(3, name = "Content", value = embed.fields[3].value + " -> " + formatMessageContent(message.content), inline = True)
+        embed.set_field_at(3, name = "Content", value = embed.fields[3].value + " -> " + formatMessageContent(content), inline = True)
         if not log.get("edited"):
             embed.add_field(name = "Edited", value = "**True**");
             log["edited"] = True;
